@@ -8,3 +8,6 @@ description = "egui widget kit: theme, buttons, tabs, switches, numeric up-down,
 [dependencies]
 egui.workspace = true
 egui-phosphor.workspace = true
+
+[dev-dependencies]
+eframe.workspace = true

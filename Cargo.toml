@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/h0useRus/gobloon-common-ui"
+
+[workspace.dependencies]
+# The apps using these crates must be on the same egui: widgets of two egui versions don't mix.
+egui = "0.37"
+egui-phosphor = "0.14"
+fluent-bundle = "0.16"
+unic-langid = "0.9"
+# The gallery example only.
+eframe = "0.37"
