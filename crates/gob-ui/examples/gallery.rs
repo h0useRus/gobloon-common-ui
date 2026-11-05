@@ -49,6 +49,7 @@ struct Gallery {
     level: f32,
     text: String,
     note: String,
+    code: String,
     dialog: bool,
     window: bool,
 }
@@ -66,6 +67,11 @@ impl Default for Gallery {
             level: 0.5,
             text: "Text field".into(),
             note: "Editable text: click to edit".into(),
+            code: "-- Lua with line numbers
+local speed = script.float{ name = \"Speed\", default = 1 }
+if speed.value > 0.5 then log(\"fast\") end
+"
+            .into(),
             dialog: false,
             window: false,
         }
@@ -135,6 +141,11 @@ impl eframe::App for Gallery {
             gob_ui::slider(ui, &mut self.level, 0.0..=1.0, 0.01, "");
             ui.add(gob_ui::text_field(&mut self.text));
             ui.add(EditableText::new(&mut self.note, "note").hint("A note"));
+            ui.add(
+                gob_ui::CodeEditor::new(&mut self.code, "code")
+                    .desired_rows(5)
+                    .error_line(Some(2)),
+            );
             ui.horizontal(|ui| {
                 gob_ui::icon_button(ui, true, icon::TRASH, "Icon button");
                 gob_ui::icon_button_colored(ui, true, icon::WARNING, gob_ui::RED, "Colored icon");

@@ -6,6 +6,7 @@
 //! Icons are Phosphor's regular set ([`icon`]); [`add_icon_font`] puts it into egui's fonts.
 
 mod buttons;
+mod code;
 mod dialog;
 mod editable;
 mod spin;
@@ -17,6 +18,7 @@ mod tick;
 pub mod tokens;
 
 pub use buttons::*;
+pub use code::{CodeEditor, lua_layout_job};
 pub use dialog::*;
 pub use editable::*;
 pub use egui_phosphor::regular as icon;
