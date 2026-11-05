@@ -138,6 +138,20 @@ impl eframe::App for Gallery {
             ui.horizontal(|ui| {
                 gob_ui::icon_button(ui, true, icon::TRASH, "Icon button");
                 gob_ui::icon_button_colored(ui, true, icon::WARNING, gob_ui::RED, "Colored icon");
+                gob_ui::icon_badge_button(
+                    ui,
+                    true,
+                    icon::MICROPHONE,
+                    icon::PLUS,
+                    "Icon with a badge",
+                );
+                gob_ui::icon_badge_button(
+                    ui,
+                    false,
+                    icon::MICROPHONE,
+                    icon::ARROW_UP_RIGHT,
+                    "Disabled icon with a badge",
+                );
                 gob_ui::record_button(ui, "Record");
             });
             ui.horizontal(|ui| {

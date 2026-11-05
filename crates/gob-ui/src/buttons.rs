@@ -121,6 +121,48 @@ pub fn icon_button(ui: &mut egui::Ui, enabled: bool, glyph: &str, tooltip: &str)
     .on_hover_text(tooltip)
 }
 
+/// Icon-only push button like [`icon_button`] whose glyph carries a small `badge` glyph at its
+/// lower right: a microphone with a plus ("make a voice command") or an arrow ("go to it")
+/// reads as a link, not as a microphone that records.
+pub fn icon_badge_button(
+    ui: &mut egui::Ui,
+    enabled: bool,
+    glyph: &str,
+    badge: &str,
+    tooltip: &str,
+) -> egui::Response {
+    let h = ui.spacing().interact_size.y;
+    let sense = if enabled {
+        egui::Sense::click()
+    } else {
+        egui::Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(h), sense);
+    if ui.is_rect_visible(rect) {
+        let color = if enabled {
+            ui.style().interact(&response).text_color()
+        } else {
+            ui.visuals().weak_text_color()
+        };
+        let painter = ui.painter();
+        painter.text(
+            rect.center() - Vec2::new(h * 0.1, h * 0.04),
+            egui::Align2::CENTER_CENTER,
+            glyph,
+            egui::FontId::proportional(ICON_SIZE),
+            color,
+        );
+        painter.text(
+            rect.center() + Vec2::new(h * 0.27, h * 0.2),
+            egui::Align2::CENTER_CENTER,
+            badge,
+            egui::FontId::proportional(ICON_SIZE * 0.6),
+            color,
+        );
+    }
+    response.on_hover_text(tooltip)
+}
+
 /// Record button: a ring with a red dot in the middle, as tall as text fields.
 pub fn record_button(ui: &mut egui::Ui, tooltip: &str) -> egui::Response {
     let h = ui.spacing().interact_size.y;
