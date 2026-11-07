@@ -24,15 +24,21 @@ pub fn icon_toggle(
     glyph: &str,
     tooltip: &str,
 ) -> egui::Response {
-    let h = ui.spacing().interact_size.y;
     toggle(
         ui,
         selected,
         glyph,
         tooltip,
         ICON_SIZE,
-        Vec2::new(h + 4.0, h),
+        icon_toggle_size(ui),
     )
+}
+
+/// Size of an [`icon_toggle`]: as tall as text fields, a little wider. The keys of the
+/// [`keyboard_picker`](crate::keyboard_picker) are this size too.
+pub fn icon_toggle_size(ui: &egui::Ui) -> Vec2 {
+    let h = ui.spacing().interact_size.y;
+    Vec2::new(h + 4.0, h)
 }
 
 fn toggle(

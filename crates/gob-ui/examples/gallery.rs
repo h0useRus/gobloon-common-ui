@@ -22,7 +22,7 @@ const PALETTES: Palettes = Palettes {
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([760.0, 560.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([860.0, 820.0]),
         ..Default::default()
     };
     eframe::run_native(
@@ -52,6 +52,7 @@ struct Gallery {
     code: String,
     dialog: bool,
     window: bool,
+    keys: Vec<gob_ui::ScanCode>,
 }
 
 impl Default for Gallery {
@@ -74,6 +75,7 @@ if speed.value > 0.5 then log(\"fast\") end
             .into(),
             dialog: false,
             window: false,
+            keys: Vec::new(),
         }
     }
 }
@@ -164,6 +166,29 @@ impl eframe::App for Gallery {
                     "Disabled icon with a badge",
                 );
                 gob_ui::record_button(ui, "Record");
+            });
+            egui::ScrollArea::horizontal().show(ui, |ui| {
+                let picked = gob_ui::keyboard_picker(
+                    ui,
+                    "keys",
+                    &self.keys,
+                    |_| None,
+                    |k| {
+                        format!(
+                            "Scan code {}{:02X}",
+                            if k.extended { "E0 " } else { "" },
+                            k.code
+                        )
+                    },
+                );
+                if let Some(k) = picked {
+                    match self.keys.iter().position(|&x| x == k) {
+                        Some(i) => {
+                            self.keys.remove(i);
+                        }
+                        None => self.keys.push(k),
+                    }
+                }
             });
             ui.horizontal(|ui| {
                 if ui.button("Modal dialog").clicked() {
