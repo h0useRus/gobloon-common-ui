@@ -166,6 +166,7 @@ impl eframe::App for Gallery {
                     "Disabled icon with a badge",
                 );
                 gob_ui::record_button(ui, "Record");
+                gob_ui::warn_mark(ui, icon::LINK, "Warning mark");
             });
             egui::ScrollArea::horizontal().show(ui, |ui| {
                 let picked = gob_ui::keyboard_picker(

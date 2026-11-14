@@ -127,6 +127,14 @@ pub fn icon_button(ui: &mut egui::Ui, enabled: bool, glyph: &str, tooltip: &str)
     .on_hover_text(tooltip)
 }
 
+/// Icon in the theme's warning color that only explains itself in a tooltip: a phrase the
+/// speech model cannot hear, an action shared with other places.
+pub fn warn_mark(ui: &mut egui::Ui, glyph: &str, tooltip: &str) -> egui::Response {
+    let color = ui.visuals().warn_fg_color;
+    ui.label(RichText::new(glyph).size(ICON_SIZE).color(color))
+        .on_hover_text(tooltip)
+}
+
 /// Icon-only push button like [`icon_button`] whose glyph carries a small `badge` glyph at its
 /// lower right: a microphone with a plus ("make a voice command") or an arrow ("go to it")
 /// reads as a link, not as a microphone that records.
