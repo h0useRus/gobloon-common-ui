@@ -25,7 +25,9 @@ pub use dialog::*;
 pub use editable::*;
 pub use egui_phosphor::regular as icon;
 pub use keyboard::{KeyCap, KeyKind, ScanCode, full_layout, keyboard_picker};
-pub use picture::{Callout, CalloutSide, DevicePicture, PictureResponse};
+pub use picture::{
+    Callout, CalloutGlyph, CalloutLine, CalloutSide, DevicePicture, PictureResponse,
+};
 pub use spin::*;
 pub use switch::*;
 pub use tabs::*;

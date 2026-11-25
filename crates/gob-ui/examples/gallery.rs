@@ -234,40 +234,94 @@ impl Gallery {
         let texture = self
             .stick
             .get_or_insert_with(|| ui.ctx().load_texture("stick", stick(), Default::default()));
-        let spots = [
-            (60.0, 40.0, gob_ui::CalloutSide::Left, "Hat", None),
-            (130.0, 50.0, gob_ui::CalloutSide::Right, "Red button", None),
-            (75.0, 120.0, gob_ui::CalloutSide::Left, "Trigger", None),
-            (
-                60.0,
-                250.0,
-                gob_ui::CalloutSide::Left,
-                "B1",
-                Some("Base buttons"),
-            ),
-            (
-                100.0,
-                250.0,
-                gob_ui::CalloutSide::Left,
-                "B2",
-                Some("Base buttons"),
-            ),
-            (140.0, 250.0, gob_ui::CalloutSide::Right, "Wheel", None),
+        use gob_ui::{Callout, CalloutGlyph, CalloutLine, CalloutSide};
+        let line = |label: &str, badge: &str, text: &str| CalloutLine {
+            label: label.into(),
+            badge: badge.into(),
+            text: text.into(),
+            ..Default::default()
+        };
+        let empty = |label: &str, badge: &str| CalloutLine {
+            empty: true,
+            ..line(label, badge, "Drop an action")
+        };
+        // The stick sways and twists, to show the axis glyphs moving.
+        let t = ui.input(|i| i.time) as f32;
+        ui.ctx().request_repaint();
+        let callouts = vec![
+            Callout {
+                at: egui::pos2(60.0, 40.0),
+                title: "Left hat".into(),
+                glyph: CalloutGlyph::Hat,
+                lines: vec![
+                    line(gob_ui::icon::ARROW_UP, "", "Pitch up"),
+                    CalloutLine {
+                        lit: true,
+                        ..line(gob_ui::icon::ARROW_RIGHT, "", "Yaw right")
+                    },
+                    line(gob_ui::icon::ARROW_DOWN, "", "Pitch down"),
+                    empty(gob_ui::icon::ARROW_LEFT, ""),
+                    line(gob_ui::icon::DOT_OUTLINE, "", "Look back"),
+                ],
+                ..Default::default()
+            },
+            Callout {
+                at: egui::pos2(130.0, 50.0),
+                side: CalloutSide::Right,
+                title: "Red button".into(),
+                lines: vec![line("", "", "Fire missiles")],
+                ..Default::default()
+            },
+            Callout {
+                at: egui::pos2(75.0, 120.0),
+                title: "Trigger".into(),
+                lines: vec![line("1st", "1", "Guns"), empty("2nd", "2")],
+                ..Default::default()
+            },
+            Callout {
+                at: egui::pos2(100.0, 180.0),
+                side: CalloutSide::Right,
+                title: "Stick axes".into(),
+                glyph: CalloutGlyph::Stick,
+                lines: vec![
+                    line("X", "", "Yaw"),
+                    line("Y", "", "Pitch"),
+                    line("Twist", "", "Roll"),
+                ],
+                axes: vec![t.sin() * 0.6, (t * 0.7).cos() * 0.5, (t * 0.4).sin()],
+                ..Default::default()
+            },
+            Callout {
+                at: egui::pos2(80.0, 250.0),
+                title: "Base buttons".into(),
+                lines: vec![
+                    CalloutLine {
+                        at: Some(egui::pos2(60.0, 250.0)),
+                        ..line("B1", "B1", "Landing gear")
+                    },
+                    CalloutLine {
+                        at: Some(egui::pos2(100.0, 250.0)),
+                        ..empty("B2", "B2")
+                    },
+                ],
+                ..Default::default()
+            },
+            Callout {
+                at: egui::pos2(140.0, 250.0),
+                side: CalloutSide::Right,
+                title: "Wheel".into(),
+                glyph: CalloutGlyph::Gauge,
+                lines: vec![line("", "", "Throttle")],
+                axes: vec![(t * 0.5).sin()],
+                ..Default::default()
+            },
         ];
-        let callouts: Vec<gob_ui::Callout> = spots
-            .iter()
+        let callouts: Vec<Callout> = callouts
+            .into_iter()
             .enumerate()
-            .map(|(i, &(x, y, side, title, group))| gob_ui::Callout {
-                at: egui::pos2(x, y),
-                side,
-                title: title.into(),
-                lines: if i % 2 == 0 {
-                    vec!["Landing gear".into(), "Lights".into()]
-                } else {
-                    vec!["Drop an action".into()]
-                },
-                group: group.map(Into::into),
+            .map(|(i, c)| Callout {
                 lit: self.lit == Some(i),
+                ..c
             })
             .collect();
         let size = texture.size_vec2();
