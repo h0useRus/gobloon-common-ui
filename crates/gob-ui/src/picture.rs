@@ -1,6 +1,7 @@
 //! A picture of a device with callouts: the picture in the middle and a column of callouts on
-//! each side. A callout is a title, one line per part of the control and a glyph beside them
-//! on the picture's side: a compass for a hat, a ring for stick axes, a gauge for a single axis
+//! each side, close to it and centered together with it. A callout is a title, one line per
+//! part of the control and a glyph between them and the picture (the text runs toward the
+//! glyph, so the two read as one): a compass for a hat, a ring for stick axes, a gauge for a single axis
 //! and small badges for the rest (one per part). A leader runs from the glyph to the control's
 //! spot on the picture. Axis glyphs show where the axes are now when the app passes the values.
 //!
@@ -192,6 +193,8 @@ impl<'a> DevicePicture<'a> {
             .min(self.max_height / self.size.y)
             .max(0.01);
         let shown = self.size * scale;
+        // The columns hug the picture; picture and columns are centered together.
+        let total = shown.x + 2.0 * (column + SPACE_M);
 
         let small = FontId::proportional(ui.text_style_height(&egui::TextStyle::Small) + 1.5);
         let title_font = FontId::proportional(small.size + 1.0);
@@ -231,6 +234,11 @@ impl<'a> DevicePicture<'a> {
             Pos2::new(rect.center().x - shown.x / 2.0, rect.top()),
             shown,
         );
+        let (left, right) = if total < width {
+            (rect.center().x - total / 2.0, rect.center().x + total / 2.0)
+        } else {
+            (rect.left(), rect.right())
+        };
         self.image.paint_at(ui, picture);
         let painter = ui.painter_at(rect.expand(SPOT_RADIUS * 2.0));
         let visuals = ui.visuals().clone();
@@ -268,20 +276,19 @@ impl<'a> DevicePicture<'a> {
             let h = item_h(c);
             let top = rect.top() + tops[i];
             let (outer, inner) = match c.side {
-                CalloutSide::Left => (rect.left(), rect.left() + column),
-                CalloutSide::Right => (rect.right(), rect.right() - column),
+                CalloutSide::Left => (left, left + column),
+                CalloutSide::Right => (right, right - column),
             };
             let item = Rect::from_x_y_ranges(outer.min(inner)..=outer.max(inner), top..=top + h);
-            let glyph_rect = match c.side {
-                CalloutSide::Left => Rect::from_min_size(
-                    Pos2::new(inner - glyph.x, top + (h - glyph.y) / 2.0),
-                    glyph,
-                ),
-                CalloutSide::Right => {
-                    Rect::from_min_size(Pos2::new(inner, top + (h - glyph.y) / 2.0), glyph)
-                }
+            // Glyphs up to a stick's size share one upright axis per column; wider rows of
+            // badges reach out from the inner edge.
+            let lane = glyph.x.max(STICK);
+            let center_x = match c.side {
+                CalloutSide::Left => inner - lane / 2.0,
+                CalloutSide::Right => inner + lane / 2.0,
             };
-            let text_width = column - glyph.x - SPACE_M;
+            let glyph_rect = Rect::from_center_size(Pos2::new(center_x, top + h / 2.0), glyph);
+            let text_width = column - glyph.x.max(STICK) - SPACE_S;
             let spot = picture.min + c.at.to_vec2() * scale;
             let spot_rect = Rect::from_center_size(spot, Vec2::splat(SPOT_RADIUS * 4.0));
 
@@ -375,8 +382,11 @@ impl<'a> DevicePicture<'a> {
                 line_under = Some((i, n));
             }
 
-            // Title and lines on the outer side.
-            let right = c.side == CalloutSide::Right;
+            // Title and lines beside the glyph, running toward it.
+            let (text_x, flush_right) = match c.side {
+                CalloutSide::Left => (center_x - lane / 2.0 - SPACE_S, true),
+                CalloutSide::Right => (center_x + lane / 2.0 + SPACE_S, false),
+            };
             let mut y = top + (h - text_h(c)) / 2.0;
             let title = elided(
                 ui,
@@ -387,7 +397,7 @@ impl<'a> DevicePicture<'a> {
                 false,
                 text_width,
             );
-            paint_row(&painter, &title, outer, y, right);
+            paint_row(&painter, &title, text_x, y, flush_right);
             y += title_h;
             for (n, l) in c.lines.iter().enumerate() {
                 let row = Rect::from_x_y_ranges(item.x_range(), y..=y + line_h);
@@ -418,7 +428,7 @@ impl<'a> DevicePicture<'a> {
                     l.empty,
                     text_width,
                 );
-                paint_row(&painter, &galley, outer, y, right);
+                paint_row(&painter, &galley, text_x, y, flush_right);
                 y += line_h;
             }
             callouts.push(both);
