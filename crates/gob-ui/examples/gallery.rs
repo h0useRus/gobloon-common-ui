@@ -53,6 +53,8 @@ struct Gallery {
     dialog: bool,
     window: bool,
     keys: Vec<gob_ui::ScanCode>,
+    stick: Option<egui::TextureHandle>,
+    lit: Option<usize>,
 }
 
 impl Default for Gallery {
@@ -76,6 +78,8 @@ if speed.value > 0.5 then log(\"fast\") end
             dialog: false,
             window: false,
             keys: Vec::new(),
+            stick: None,
+            lit: None,
         }
     }
 }
@@ -121,6 +125,10 @@ impl eframe::App for Gallery {
                 }
             });
         });
+        if self.page == 1 {
+            egui::CentralPanel::default().show(root, |ui| self.picture(ui));
+            return;
+        }
         egui::CentralPanel::default().show(root, |ui| {
             ui.horizontal(|ui| {
                 for (i, (glyph, caption)) in
@@ -218,4 +226,80 @@ impl eframe::App for Gallery {
             ui.label("A compact title bar with a close button.");
         });
     }
+}
+
+impl Gallery {
+    /// The device picture on a made-up stick drawn here (apps pass a photo).
+    fn picture(&mut self, ui: &mut egui::Ui) {
+        let texture = self
+            .stick
+            .get_or_insert_with(|| ui.ctx().load_texture("stick", stick(), Default::default()));
+        let spots = [
+            (60.0, 40.0, gob_ui::CalloutSide::Left, "Hat", None),
+            (130.0, 50.0, gob_ui::CalloutSide::Right, "Red button", None),
+            (75.0, 120.0, gob_ui::CalloutSide::Left, "Trigger", None),
+            (
+                60.0,
+                250.0,
+                gob_ui::CalloutSide::Left,
+                "B1",
+                Some("Base buttons"),
+            ),
+            (
+                100.0,
+                250.0,
+                gob_ui::CalloutSide::Left,
+                "B2",
+                Some("Base buttons"),
+            ),
+            (140.0, 250.0, gob_ui::CalloutSide::Right, "Wheel", None),
+        ];
+        let callouts: Vec<gob_ui::Callout> = spots
+            .iter()
+            .enumerate()
+            .map(|(i, &(x, y, side, title, group))| gob_ui::Callout {
+                at: egui::pos2(x, y),
+                side,
+                title: title.into(),
+                lines: if i % 2 == 0 {
+                    vec!["Landing gear".into(), "Lights".into()]
+                } else {
+                    vec!["Drop an action".into()]
+                },
+                group: group.map(Into::into),
+                lit: self.lit == Some(i),
+            })
+            .collect();
+        let size = texture.size_vec2();
+        let image = egui::Image::new(&*texture);
+        let response = gob_ui::DevicePicture::new("gallery-picture", image, size, &callouts)
+            .caption(Some("Picture credit line"))
+            .max_height(ui.available_height() - 40.0)
+            .show(ui);
+        if let Some(i) = response.clicked() {
+            self.lit = (self.lit != Some(i)).then_some(i);
+        }
+    }
+}
+
+/// A grey stick silhouette, 200 x 300.
+fn stick() -> egui::ColorImage {
+    let (w, h) = (200usize, 300usize);
+    let mut pixels = vec![Color32::TRANSPARENT; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            let (fx, fy) = (x as f32, y as f32);
+            let grip = (fx - 100.0).abs() < 28.0 + (fy - 60.0).max(0.0) * 0.05
+                && (20.0..200.0).contains(&fy);
+            let head = ((fx - 100.0).powi(2) / 60.0f32.powi(2)
+                + (fy - 50.0).powi(2) / 35.0f32.powi(2))
+                < 1.0;
+            let base = (30.0..280.0).contains(&fy) && fy > 210.0 && (fx - 100.0).abs() < 90.0;
+            if grip || head || base {
+                let shade = 40 + ((fy / h as f32) * 30.0) as u8;
+                pixels[y * w + x] = Color32::from_gray(shade);
+            }
+        }
+    }
+    egui::ColorImage::new([w, h], pixels)
 }

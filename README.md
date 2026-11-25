@@ -5,8 +5,9 @@ The egui widget kit and the localization loader shared by the Gobloon apps
 
 - **gob-ui**: one look for every control. Palette and text sizes (`theme`), sizes and spacing on a
   4 px grid (`tokens`), and the widgets built on them: icon and toolbar buttons, tabs, toggle
-  switches, ticks, a numeric up-down with slider, text fields, editable text, modal dialogs and
-  Windows-style dialog windows. Icons are Phosphor's regular set. Nothing in it knows about an app:
+  switches, ticks, a numeric up-down with slider, text fields, editable text, a code editor, a
+  key picker keyboard, a device picture with callouts, modal dialogs and Windows-style dialog
+  windows. Icons are Phosphor's regular set. Nothing in it knows about an app:
   colors come in as a `Palettes`, texts as arguments.
 - **gob-i18n**: Fluent localization. The app passes its embedded languages to `I18n::new`, English
   is the fallback, and extra `<code>.ftl` files load from a folder. `check_complete` lets an app's
