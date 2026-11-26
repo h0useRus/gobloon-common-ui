@@ -1,6 +1,7 @@
 //! A picture of a device with callouts: the picture in the middle, a column of cards on each
 //! side, and an elbow leader line from every card to its spot on the picture. Each card can be
-//! hovered, clicked and dropped on (`Response::dnd_release_payload`).
+//! hovered, clicked and dropped on (`Response::dnd_release_payload`), and with
+//! [`DevicePicture::movable_cards`] dragged to another height or the other side.
 //!
 //! The app brings the picture (any [`egui::Image`]: a photo or a rasterized drawing), its size in
 //! the units the spots use (pixels of a photo, the viewBox of a drawing) and the cards' texts.
@@ -31,6 +32,9 @@ pub struct Callout {
     pub group: Option<String>,
     /// Drawn in the accent color (the control is held now, or selected).
     pub lit: bool,
+    /// The card's top, in picture units, when it was placed by hand (it may lie above or below
+    /// the picture); `None` = as near its spot's height as the cards above allow.
+    pub place: Option<f32>,
 }
 
 /// What the picture did this frame.
@@ -43,6 +47,9 @@ pub struct PictureResponse {
     /// Where the picture is drawn and how picture units map onto the screen.
     pub picture: Rect,
     pub scale: f32,
+    /// A card dropped this frame after a drag: which, its side and its top in picture units
+    /// (for [`Callout::place`]).
+    pub moved: Option<(usize, CalloutSide, f32)>,
 }
 
 impl PictureResponse {
@@ -66,6 +73,7 @@ pub struct DevicePicture<'a> {
     caption: Option<&'a str>,
     max_height: f32,
     draggable: bool,
+    movable_cards: bool,
 }
 
 const COLUMN_MIN: f32 = 130.0;
@@ -88,6 +96,7 @@ impl<'a> DevicePicture<'a> {
             caption: None,
             max_height: f32::INFINITY,
             draggable: false,
+            movable_cards: false,
         }
     }
 
@@ -110,6 +119,13 @@ impl<'a> DevicePicture<'a> {
         self
     }
 
+    /// The cards can be dragged up and down and to the other side
+    /// ([`PictureResponse::moved`]).
+    pub fn movable_cards(mut self, movable: bool) -> Self {
+        self.movable_cards = movable;
+        self
+    }
+
     pub fn show(self, ui: &mut egui::Ui) -> PictureResponse {
         let width = ui.available_width();
         let column = (width * 0.26).clamp(COLUMN_MIN, COLUMN_MAX);
@@ -128,7 +144,12 @@ impl<'a> DevicePicture<'a> {
         let group_h = line_h + SPACE_XS;
 
         // Cards stacked per side in the order of their spots, each as near its spot's height
-        // as the cards above allow.
+        // as the cards above allow; a card placed by hand stays where it was put and the others
+        // go around it.
+        let want = |c: &Callout| match c.place {
+            Some(y) => (y * scale).max(0.0),
+            None => c.at.y * scale - card_h(c) / 2.0,
+        };
         let mut tops = vec![0.0; self.callouts.len()];
         let mut heading = vec![false; self.callouts.len()];
         let mut bottom = shown.y;
@@ -138,9 +159,15 @@ impl<'a> DevicePicture<'a> {
                 .collect();
             order.sort_by(|&a, &b| {
                 let (a, b) = (&self.callouts[a], &self.callouts[b]);
-                a.at.y.total_cmp(&b.at.y)
+                want(a).total_cmp(&want(b))
             });
             group_runs(&mut order, self.callouts);
+            let placed: Vec<(f32, f32)> = order
+                .iter()
+                .map(|&i| &self.callouts[i])
+                .filter(|c| c.place.is_some())
+                .map(|c| (want(c), want(c) + card_h(c)))
+                .collect();
             let mut next = 0.0f32;
             let mut last_group: Option<&str> = None;
             for &i in &order {
@@ -151,9 +178,21 @@ impl<'a> DevicePicture<'a> {
                     next += group_h;
                 }
                 last_group = group;
-                let want = c.at.y * scale - card_h(c) / 2.0;
-                tops[i] = want.max(next);
-                next = tops[i] + card_h(c) + SPACE_XS;
+                let h = card_h(c);
+                if c.place.is_some() {
+                    tops[i] = want(c);
+                    bottom = bottom.max(tops[i] + h);
+                    continue;
+                }
+                let mut top = want(c).max(next);
+                while let Some(&(_, end)) = placed
+                    .iter()
+                    .find(|&&(start, end)| top < end + SPACE_XS && top + h + SPACE_XS > start)
+                {
+                    top = end + SPACE_XS;
+                }
+                tops[i] = top;
+                next = top + h + SPACE_XS;
             }
             bottom = bottom.max(next);
         }
@@ -195,21 +234,66 @@ impl<'a> DevicePicture<'a> {
         let weak = visuals.weak_text_color();
         let pointer = ui.ctx().pointer_hover_pos();
 
+        // The cards and spots first, so the card being dragged can be drawn over the others.
+        let grab_id = self.id.with("grab");
         let mut callouts = Vec::with_capacity(self.callouts.len());
+        let mut cards = Vec::with_capacity(self.callouts.len());
+        let mut sides = Vec::with_capacity(self.callouts.len());
         let mut hovered = None;
+        let mut dragging = None;
+        let mut moved = None;
+        let column_x = |side: CalloutSide| match side {
+            CalloutSide::Left => rect.left(),
+            CalloutSide::Right => rect.right() - column,
+        };
         for (i, c) in self.callouts.iter().enumerate() {
-            let x = match c.side {
-                CalloutSide::Left => rect.left(),
-                CalloutSide::Right => rect.right() - column,
-            };
-            let card = Rect::from_min_size(
-                Pos2::new(x, rect.top() + tops[i]),
+            let mut side = c.side;
+            let mut card = Rect::from_min_size(
+                Pos2::new(column_x(side), rect.top() + tops[i]),
                 Vec2::new(column, card_h(c)),
             );
             let spot = picture.min + c.at.to_vec2() * scale;
             let spot_rect = Rect::from_center_size(spot, Vec2::splat(SPOT_RADIUS * 3.0));
             let id = self.id.with(i);
-            let card_response = ui.interact(card, id, Sense::click());
+            let card_sense = if self.movable_cards {
+                Sense::click_and_drag()
+            } else {
+                Sense::click()
+            };
+            let card_response = ui.interact(card, id, card_sense);
+            if self.movable_cards {
+                if card_response.drag_started()
+                    && let Some(p) = card_response.interact_pointer_pos()
+                {
+                    ui.data_mut(|d| d.insert_temp(grab_id, p.y - card.top()));
+                }
+                if (card_response.dragged() || card_response.drag_stopped())
+                    && let Some(p) = ui.ctx().pointer_latest_pos()
+                {
+                    let grab = ui.data(|d| d.get_temp::<f32>(grab_id)).unwrap_or(0.0);
+                    side = if p.x < rect.center().x {
+                        CalloutSide::Left
+                    } else {
+                        CalloutSide::Right
+                    };
+                    card = Rect::from_min_size(
+                        Pos2::new(column_x(side), (p.y - grab).max(rect.top())),
+                        card.size(),
+                    );
+                    if card_response.drag_stopped() {
+                        moved = Some((i, side, (card.top() - rect.top()) / scale));
+                    } else {
+                        dragging = Some(i);
+                    }
+                }
+                if card_response.hovered() || card_response.dragged() {
+                    ui.ctx().set_cursor_icon(if card_response.dragged() {
+                        egui::CursorIcon::Grabbing
+                    } else {
+                        egui::CursorIcon::Grab
+                    });
+                }
+            }
             let spot_sense = if self.draggable {
                 Sense::click_and_drag()
             } else {
@@ -218,13 +302,29 @@ impl<'a> DevicePicture<'a> {
             let spot_response = ui.interact(spot_rect, id.with("spot"), spot_sense);
             let both = card_response.union(spot_response);
             let hot = both.hovered()
+                || dragging == Some(i)
                 || pointer.is_some_and(|p| card.contains(p) || spot_rect.contains(p));
-            if hot {
+            if hot && (hovered.is_none() || dragging == Some(i)) {
                 hovered = Some(i);
             }
+            callouts.push(both);
+            cards.push(card);
+            sides.push(side);
+        }
+
+        // The card being dragged last, over the others.
+        let mut order: Vec<usize> = (0..self.callouts.len())
+            .filter(|&i| Some(i) != dragging)
+            .collect();
+        order.extend(dragging);
+        for i in order {
+            let c = &self.callouts[i];
+            let card = cards[i];
+            let spot = picture.min + c.at.to_vec2() * scale;
+            let hot = hovered == Some(i);
             let color = if c.lit || hot { accent } else { line };
 
-            if heading[i] {
+            if heading[i] && dragging != Some(i) {
                 painter.text(
                     Pos2::new(card.left() + pad, card.top() - group_h),
                     Align2::LEFT_TOP,
@@ -234,7 +334,7 @@ impl<'a> DevicePicture<'a> {
                 );
             }
             // Leader: out of the card's inner edge to an elbow beside the picture, then to the spot.
-            let (start, elbow_x) = match c.side {
+            let (start, elbow_x) = match sides[i] {
                 CalloutSide::Left => (
                     Pos2::new(card.right(), card.top() + pad + title_h / 2.0),
                     picture.left().min(card.right() + SPACE_S) - SPACE_XS,
@@ -304,7 +404,6 @@ impl<'a> DevicePicture<'a> {
                 );
                 y += line_h;
             }
-            callouts.push(both);
         }
         PictureResponse {
             response,
@@ -312,6 +411,7 @@ impl<'a> DevicePicture<'a> {
             hovered,
             picture,
             scale,
+            moved,
         }
     }
 }
@@ -348,6 +448,7 @@ mod tests {
             lines: Vec::new(),
             group: group.map(Into::into),
             lit: false,
+            place: None,
         }
     }
 

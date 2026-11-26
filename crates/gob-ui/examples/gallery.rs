@@ -54,6 +54,8 @@ struct Gallery {
     window: bool,
     keys: Vec<gob_ui::ScanCode>,
     stick: Option<egui::TextureHandle>,
+    /// Cards of the device picture dragged elsewhere: side and top.
+    places: std::collections::HashMap<usize, (gob_ui::CalloutSide, f32)>,
     lit: Option<usize>,
 }
 
@@ -79,6 +81,7 @@ if speed.value > 0.5 then log(\"fast\") end
             window: false,
             keys: Vec::new(),
             stick: None,
+            places: Default::default(),
             lit: None,
         }
     }
@@ -259,7 +262,7 @@ impl Gallery {
             .enumerate()
             .map(|(i, &(x, y, side, title, group))| gob_ui::Callout {
                 at: egui::pos2(x, y),
-                side,
+                side: self.places.get(&i).map_or(side, |p| p.0),
                 title: title.into(),
                 lines: if i % 2 == 0 {
                     vec!["Landing gear".into(), "Lights".into()]
@@ -268,14 +271,19 @@ impl Gallery {
                 },
                 group: group.map(Into::into),
                 lit: self.lit == Some(i),
+                place: self.places.get(&i).map(|p| p.1),
             })
             .collect();
         let size = texture.size_vec2();
         let image = egui::Image::new(&*texture);
         let response = gob_ui::DevicePicture::new("gallery-picture", image, size, &callouts)
             .caption(Some("Picture credit line"))
+            .movable_cards(true)
             .max_height(ui.available_height() - 40.0)
             .show(ui);
+        if let Some((i, side, top)) = response.moved {
+            self.places.insert(i, (side, top));
+        }
         if let Some(i) = response.clicked() {
             self.lit = (self.lit != Some(i)).then_some(i);
         }
